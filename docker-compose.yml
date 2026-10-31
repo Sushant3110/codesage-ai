@@ -1,0 +1,93 @@
+# ==============================================================================
+# CodeSage AI — Production Multi-Container Compose Configuration
+# ==============================================================================
+# Usage:
+#   1. cp .env.example .env
+#   2. Add your GEMINI_API_KEY to .env
+#   3. docker compose up --build -d
+#   4. Open http://localhost in your browser
+# ==============================================================================
+
+services:
+  # ── Backend Service (FastAPI) ───────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codesage-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - GEMINI_TIMEOUT_SECONDS=${GEMINI_TIMEOUT_SECONDS:-30}
+      - GEMINI_MAX_RETRIES=${GEMINI_MAX_RETRIES:-1}
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME:-codesage}
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - CHROMA_COLLECTION_NAME=${CHROMA_COLLECTION_NAME:-coding_guidelines}
+      - RAG_ENABLED=${RAG_ENABLED:-true}
+      - RAG_N_RESULTS=${RAG_N_RESULTS:-5}
+      - RAG_CHUNK_SIZE=${RAG_CHUNK_SIZE:-500}
+      - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP:-50}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      - MAX_CODE_SIZE_BYTES=${MAX_CODE_SIZE_BYTES:-32768}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:80,http://localhost:5173}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ANONYMIZED_TELEMETRY=False
+      - HF_HUB_OFFLINE=1
+    volumes:
+      - chroma_data:/app/chroma_data
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Frontend Service (React / Vite via Nginx) ──────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: codesage-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ── Database Service (MongoDB) ──────────────────────────────────────────────
+  mongodb:
+    image: mongo:7.0
+    container_name: codesage-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  chroma_data:
+    name: codesage_chroma_data
+  mongo_data:
+    name: codesage_mongo_data

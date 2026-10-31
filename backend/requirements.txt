@@ -1,0 +1,27 @@
+# Production dependencies — pinned for reproducibility
+# Generated for Python 3.11+
+
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+
+# Configuration
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Database
+pymongo==4.10.1
+
+# LLM (Phase 3 — imported in service, not used in Phase 1)
+google-generativeai==0.8.3
+
+# Static analysis tools (runtime; invoked as subprocesses in Phase 2)
+ruff==0.8.3
+bandit==1.8.0
+
+# RAG (Phase 3 — vector store, chunking, embeddings)
+chromadb==0.5.23
+sentence-transformers==3.3.1
+langchain-text-splitters>=0.3.0
+langchain-core>=0.3.0
